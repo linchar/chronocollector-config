@@ -1,0 +1,267 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: chronocollector-daemonset
+  name: chronocollector-daemonset
+  namespace: chronosphere
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app: chronocollector-daemonset
+  name: chronocollector-daemonset
+rules:
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+      - nodes
+      - pods
+      - services
+      - endpoints
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/metrics
+      - nodes/proxy
+    verbs:
+      - get
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - monitoring.coreos.com
+    resources:
+      - servicemonitors
+    verbs:
+      - get
+      - list
+      - watch
+  - nonResourceURLs:
+      - /metrics
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: chronocollector-daemonset
+  name: chronocollector-daemonset
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: chronocollector-daemonset
+subjects:
+  - kind: ServiceAccount
+    name: chronocollector-daemonset
+    namespace: chronosphere
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: chronocollector-daemonset
+  name: chronocollector-daemonset
+  namespace: chronosphere
+data:
+  config.yml: |
+    logging:
+      level: info
+    metrics:
+      scope:
+        prefix: chronocollector
+        tags: {}
+      prometheus:
+        handlerPath: /metrics
+      sanitization: prometheus
+      samplingRate: 1.0
+      extended: none
+    listenAddress: ${LISTEN_ADDRESS:0.0.0.0:3030}
+    labels:
+      defaults:
+        k8s_cluster_name: ${CLUSTER:""}
+        env: ${ENV:""}
+    backend:
+      type: gateway
+      annotatedMetrics: ${BACKEND_ANNOTATED_METRICS:false}
+      gateway:
+        address: ${GATEWAY_ADDRESS:""}
+        serverName: ${GATEWAY_SERVER_NAME:""}
+        insecure: ${GATEWAY_INSECURE:false}
+        cert: ${GATEWAY_CERT:""}
+        certSkipVerify: ${GATEWAY_CERT_SKIP_VERIFY:false}
+        apiTokenFile: ${API_TOKEN_FILE:""}
+      compressionFormat: zstd
+    kubernetes:
+      client:
+        outOfCluster: ${KUBERNETES_CLIENT_OUT_OF_CLUSTER:false}
+      processor:
+        annotationsPrefix: ${KUBERNETES_PROCESSOR_ANNOTATIONS_PREFIX:"prometheus.io/"}
+    discovery:
+      kubernetes:
+        enabled: true
+        kubeletMonitoring:
+          port: 10250
+          bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+          labelsToAugment: []
+          annotationsToAugment: []
+          kubeletMetricsEnabled: false
+          cadvisorMetricsEnabled: true
+          probesMetricsEnabled: false
+        serviceMonitorsEnabled: true
+        endpointsDiscoveryEnabled: true
+        useEndpointSlices: true
+        kubeSystemEndpointsDiscoveryEnabled: false
+        podMatchingStrategy: service_monitors_first
+      prometheus:
+        enabled: true
+        scrape_configs:
+        - job_name: chronocollector
+          scrape_interval: 60s
+          scrape_timeout: 60s
+          static_configs:
+          - targets:
+            - localhost:3030
+          relabel_configs:
+          - target_label: instance
+            replacement: ${KUBERNETES_POD_NAME:""}
+            action: replace
+    serviceMonitor:
+      allowSkipPodInfo: false
+      serviceMonitorSelector:
+        matchAll: false
+        # This is used to select service monitors that are not kube-state-metrics (ksm)
+        # ksm will be handled by the chronocollector deployment
+        matchExpressions:
+          - label: app.kubernetes.io/name
+            operator: NotIn
+            values:
+              - kube-state-metrics
+    scrape:
+      defaults:
+        scrapeInterval: 60s
+        scrapeTimeout: 60s
+      enableStalenessMarker: true
+
+
+# ---
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   labels:
+#     app: chronocollector
+#   name: chronosphere-secret
+#   namespace: chronosphere
+# type: Opaque
+# data:
+#   address: <tenant>
+#   api-token: <api_token>
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: chronocollector-daemonset
+  name: chronocollector-daemonset
+  namespace: chronosphere
+spec:
+  selector:
+    matchLabels:
+      app: chronocollector-daemonset
+  template:
+    metadata:
+      annotations:
+        chronosphere.io/port: "3030"
+        chronosphere.io/scrape: "true"
+      labels:
+        app: chronocollector-daemonset
+    spec:
+      containers:
+        - env:
+            - name: GATEWAY_ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  key: address
+                  name: chronosphere-secret
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: api-token
+                  name: chronosphere-secret
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBERNETES_NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: KUBERNETES_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          image: gcr.io/chronosphereio/chronocollector:v0.113.0
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3030
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: chronocollector-daemonset
+          ports:
+            - containerPort: 3030
+              name: http
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+            requests:
+              cpu: 1000m
+              memory: 512Mi
+          volumeMounts:
+            - mountPath: /etc/chronocollector
+              name: chronocollector-daemonset
+            - mountPath: /host/sys/fs/cgroup
+              name: cgroup
+              readOnly: true
+      serviceAccountName: chronocollector-daemonset
+      terminationGracePeriodSeconds: 5
+      volumes:
+        - configMap:
+            name: chronocollector-daemonset
+          name: chronocollector-daemonset
+        - hostPath:
+            path: /sys/fs/cgroup
+            type: Directory
+          name: cgroup
+  updateStrategy:
+    type: RollingUpdate
