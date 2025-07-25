@@ -125,12 +125,23 @@ data:
         serviceMonitorsEnabled: true
         endpointsDiscoveryEnabled: true
         kubeSystemEndpointsDiscoveryEnabled: false
-        podMatchingStrategy: service_monitors_first
+        podMatchingStrategy: service_monitors_only # we only want to discover using service monitors
 
+      prometheus:
+        enabled: true
+        scrape_configs:
+        - job_name: chronocollector
+          static_configs:
+          - targets:
+            - localhost:3030
+          relabel_configs:
+          - target_label: instance
+            replacement: ${KUBERNETES_POD_NAME:""}
+            action: replace
     scrape:
       defaults:
-        scrapeInterval: "30s"
-        scrapeTimeout: "30s"
+        scrapeInterval: "60s"
+        scrapeTimeout: "60s"
 
     serviceMonitor:
       serviceMonitorSelector:
