@@ -6,7 +6,7 @@ This folder contains configuration files for chronocollector to collect metrics 
 
 and 
 
-- endpoints that are annotated with prefix "prometheus.io/"
+- pods that are annotated with prefix "prometheus.io/scrape:true"
 
 The configuration assumes chronocollector is deployed into namespace: chronosphere. Here are the steps:
 
