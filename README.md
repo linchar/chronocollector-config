@@ -1,9 +1,12 @@
 This folder contains configuration files for chronocollector to collect metrics from the following services:
 - cadvisor
-- kube-system
 - kube-state-metrics
 - node-exporter
 - dcgm-exporter
+
+and 
+
+- endpoints that are annotated with prefix "prometheus.io/"
 
 The configuration assumes chronocollector is deployed into namespace: chronosphere. Here are the steps:
 
@@ -38,14 +41,19 @@ helm install prometheus-node-exporter prometheus-community/prometheus-node-expor
 ```
 
 ## Install Chronocollector Daemonset and Deployment
-```
+To set labels for all metrics collected by the collector, modify the labels.defaults section of the configmap.
+```sh
 kubectl apply -f chronocollector-daemonset.yaml -n <namespace-if-not-default. e.g. chronosphere>
+```
+
+```sh
 kubectl apply -f chronocollector-deployment.yaml -n <namespace-if-not-default. e.g. chronosphere>
 ```
-Chronocollector deployment is used to scrape kube-state-metrics for resource and performance. For details see [online doc](https://docs.chronosphere.io/ingest/metrics-traces/collector/discover/monitor-kubernetes#discover-and-scrape-kube-state-metrics)
-
+For large clusters, Chronocollector deployment is used to scrape kube-state-metrics to conserve resource and improve performance. For details see [online doc](https://docs.chronosphere.io/ingest/metrics-traces/collector/discover/monitor-kubernetes#discover-and-scrape-kube-state-metrics)
 
 ## Configure Service Monitors
+Service monitor definition assumes that services are deployed using Prometheus Community Helm charts.
+
 ```
 kubectl apply -f service-monitors.yaml -n <namespace-if-not-default. e.g. chronosphere>
 ```

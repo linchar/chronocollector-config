@@ -134,12 +134,12 @@ data:
         useEndpointSlices: true
         kubeSystemEndpointsDiscoveryEnabled: false
         podMatchingStrategy: service_monitors_first
+        # service_monitors_first that will discover service monitors first 
+        # and then use annotations to discover pods
       prometheus:
         enabled: true
         scrape_configs:
         - job_name: chronocollector
-          scrape_interval: 60s
-          scrape_timeout: 60s
           static_configs:
           - targets:
             - localhost:3030

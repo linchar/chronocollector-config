@@ -1,4 +1,6 @@
-# This file contains example ServiceMonitor configurations for various components.
+# This file contains example ServiceMonitor configurations for various components
+# Service monitor definition assumes that services are deployed using Prometheus Community Helm charts.
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
