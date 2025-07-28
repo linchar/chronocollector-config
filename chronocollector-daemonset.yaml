@@ -191,9 +191,6 @@ spec:
       app: chronocollector-daemonset
   template:
     metadata:
-      annotations:
-        chronosphere.io/port: "3030"
-        chronosphere.io/scrape: "true"
       labels:
         app: chronocollector-daemonset
     spec:
