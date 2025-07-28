@@ -144,7 +144,7 @@ data:
         scrapeTimeout: "60s"
 
     serviceMonitor:
-      # Set to true  to scrape every endpoint in the cluster, or cause duplicate scrapes.
+      # Set to true  to scrape every endpoint in the cluster
       # Setting to false will only work if the deployment and KSM are running on the same node in the cluster
       allowSkipPodInfo: true
       serviceMonitorSelector:
