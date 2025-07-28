@@ -148,6 +148,9 @@ data:
             replacement: ${KUBERNETES_POD_NAME:""}
             action: replace
     serviceMonitor:
+      # Set to false so daemonset only scrapes endpoints on the same node
+      # Setting to true for a DaemonSet can cause every Collector in the DaemonSet to attempt to scrape 
+      # every endpoint in the cluster, or cause duplicate scrapes.
       allowSkipPodInfo: false
       serviceMonitorSelector:
         matchAll: false
